@@ -65,7 +65,7 @@ export default function Hero() {
           
           <div className="mb-8">
             <img 
-              src="/brosur-khitan6.svg"
+              src="/brosurKhitanfix.svg"
               alt="Brosur Khitan Massal"
               className="mx-auto max-w-full h-auto rounded-lg shadow-lg"
             />
