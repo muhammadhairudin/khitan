@@ -1,11 +1,15 @@
 import { useForm } from "react-hook-form"
 import { useState } from "react"
-import { db } from '../lib/firebase'
-import { collection, addDoc, serverTimestamp, query, getDocs } from 'firebase/firestore'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../hooks/useToast'
 import Swal from 'sweetalert2'
 import { sendAdminNotification } from '../utils/whatsapp'
+
+// Token GitHub dan info repo
+const GITHUB_TOKEN = import.meta.env.VITE_GITHUB_TOKEN
+const REPO_OWNER = 'muhammadhairudin'
+const REPO_NAME = 'khitan'
+const DATA_PATH = 'data/registrations.json'
 
 export default function Registration() {
   const { register, handleSubmit, formState: { errors } } = useForm()
@@ -15,8 +19,8 @@ export default function Registration() {
   const { showToast } = useToast()
 
   const validateImage = (file) => {
-    if (file.size > 2 * 1024 * 1024) {
-      throw new Error('Ukuran foto maksimal 2MB')
+    if (file.size > 5 * 1024 * 1024) {
+      throw new Error('Ukuran foto maksimal 5MB')
     }
     
     if (!file.type.match('image/jpeg|image/jpg')) {
@@ -32,6 +36,11 @@ export default function Registration() {
       reader.readAsDataURL(file)
       
       reader.onload = (event) => {
+        if (file.size <= 5 * 1024 * 1024) {
+          resolve(event.target.result)
+          return
+        }
+
         const img = new Image()
         img.src = event.target.result
         
@@ -39,12 +48,12 @@ export default function Registration() {
           const canvas = document.createElement('canvas')
           const ctx = canvas.getContext('2d')
 
-          const MAX_FILE_SIZE = 500 * 1024 
+          const MAX_FILE_SIZE = 5024 * 1024
           
           let width = img.width
           let height = img.height
-          const MAX_WIDTH = 800
-          const MAX_HEIGHT = 800
+          const MAX_WIDTH = 1024
+          const MAX_HEIGHT = 1024
 
           if (width > height) {
             if (width > MAX_WIDTH) {
@@ -85,28 +94,63 @@ export default function Registration() {
     if (file) {
       try {
         validateImage(file)
-        const compressedPreview = await compressImage(file)
-        setPreviewImage(compressedPreview)
+        if (file.size <= 5 * 1024 * 1024) {
+          const reader = new FileReader()
+          reader.onload = (e) => setPreviewImage(e.target.result)
+          reader.readAsDataURL(file)
+        } else {
+          const compressedPreview = await compressImage(file)
+          setPreviewImage(compressedPreview)
+        }
       } catch (error) {
-        alert(error.message)
+        showToast(error.message, 'error')
         e.target.value = ''
         setPreviewImage(null)
       }
     }
   }
 
-  const generateRegistrationNumber = async () => {
+  const saveToGitHub = async (data) => {
     try {
-      // Ambil total peserta untuk menentukan nomor urut
-      const q = query(collection(db, "registrations"))
-      const snapshot = await getDocs(q)
-      const totalParticipants = snapshot.size
+      // Ambil data yang sudah ada
+      const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${DATA_PATH}`)
+      const fileData = await response.json()
       
-      // Format: Khitan-6-001 (Khitan-6 = Khitan Periode ke-6)
-      const registrationNumber = `Khitan-6-${String(totalParticipants + 1).padStart(3, '0')}`
-      return registrationNumber
+      // Decode content yang ada
+      let existingData = []
+      if (fileData.content) {
+        const decodedContent = atob(fileData.content)
+        existingData = JSON.parse(decodedContent)
+      }
+
+      // Tambah data baru
+      existingData.push({
+        ...data,
+        registrationNumber: `Khitan-6-${String(existingData.length + 1).padStart(3, '0')}`,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      })
+
+      // Encode data untuk GitHub
+      const content = btoa(JSON.stringify(existingData, null, 2))
+
+      // Update file di GitHub
+      await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${DATA_PATH}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `token ${GITHUB_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: `Add registration: ${data.childName}`,
+          content,
+          sha: fileData.sha
+        })
+      })
+
+      return existingData[existingData.length - 1]
     } catch (error) {
-      console.error('Error generating registration number:', error)
+      console.error('Error saving to GitHub:', error)
       throw error
     }
   }
@@ -117,7 +161,6 @@ export default function Registration() {
       const file = data.photo[0]
       validateImage(file)
       
-      // Loading state
       Swal.fire({
         title: 'Sedang Memproses...',
         html: 'Mohon tunggu sebentar',
@@ -128,25 +171,20 @@ export default function Registration() {
       })
       
       const compressedPhoto = await compressImage(file)
-      const registrationNumber = await generateRegistrationNumber()
       
-      await addDoc(collection(db, "registrations"), {
-        registrationNumber,
+      // Simpan data ke GitHub
+      const savedData = await saveToGitHub({
         childName: data.childName,
         birthDate: data.birthDate,
         fatherName: data.fatherName,
         motherName: data.motherName,
         phone: data.phone,
         address: data.address,
-        photo: compressedPhoto,
-        photoSize: Math.round(compressedPhoto.length / 1024),
-        status: 'pending',
-        createdAt: serverTimestamp()
+        photo: compressedPhoto
       })
 
-      // Kirim notifikasi ke admin
       sendAdminNotification({
-        registrationNumber,
+        registrationNumber: savedData.registrationNumber,
         childName: data.childName,
         birthDate: data.birthDate,
         fatherName: data.fatherName,
@@ -155,12 +193,11 @@ export default function Registration() {
         address: data.address
       })
 
-      // Alert sukses
       await Swal.fire({
         title: 'Pendaftaran Berhasil!',
         html: `
           <div class="text-left">
-            <p class="mb-2">No. Registrasi: <strong>${registrationNumber}</strong></p>
+            <p class="mb-2">No. Registrasi: <strong>${savedData.registrationNumber}</strong></p>
             <p class="mb-2">Nama Anak: <strong>${data.childName}</strong></p>
             <p class="mb-4">Status: <span class="badge badge-warning">Menunggu Verifikasi</span></p>
             <p class="text-sm">Notifikasi telah dikirim ke admin untuk verifikasi</p>
@@ -172,7 +209,7 @@ export default function Registration() {
 
       navigate('/peserta')
     } catch (error) {
-      console.error(error)
+      console.error('Registration error:', error)
       Swal.fire({
         title: 'Error!',
         text: error.message || 'Terjadi kesalahan saat mendaftar',
@@ -198,15 +235,24 @@ export default function Registration() {
     return age
   }
 
+  // Tambahkan fungsi validasi ukuran file
+  const validateFileSize = (file) => {
+    const maxSize = 10 * 1024 * 1024; // 10MB dalam bytes
+    if (file.size > maxSize) {
+      throw new Error('Ukuran file tidak boleh lebih dari 10MB');
+    }
+    return true;
+  }
+
   return (
-    <div className="container px-2 md:px-4 py-4 md:py-8 mx-auto">
+    <div className="container px-2 py-4 mx-auto md:px-4 md:py-8">
       <div className="mx-auto max-w-2xl">
-        <h1 className="mb-4 md:mb-8 text-2xl md:text-3xl font-bold text-center">
+        <h1 className="mb-4 text-2xl font-bold text-center md:mb-8 md:text-3xl">
           Formulir Pendaftaran
         </h1>
         
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="form-control">
               <label className="label">
                 <span className="label-text">Nama Anak</span>
