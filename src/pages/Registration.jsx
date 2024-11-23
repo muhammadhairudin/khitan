@@ -4,12 +4,11 @@ import { useNavigate } from 'react-router-dom'
 import { useToast } from '../hooks/useToast'
 import Swal from 'sweetalert2'
 import { sendAdminNotification } from '../utils/whatsapp'
+import { Octokit } from '@octokit/rest'
 
-// Token GitHub dan info repo
-const GITHUB_TOKEN = import.meta.env.VITE_GITHUB_TOKEN
-const REPO_OWNER = 'muhammadhairudin'
-const REPO_NAME = 'khitan'
-const DATA_PATH = 'data/registrations.json'
+const octokit = new Octokit({
+  auth: import.meta.env.VITE_GITHUB_TOKEN
+})
 
 export default function Registration() {
   const { register, handleSubmit, formState: { errors } } = useForm()
@@ -112,43 +111,46 @@ export default function Registration() {
 
   const saveToGitHub = async (data) => {
     try {
-      // Ambil data yang sudah ada
-      const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${DATA_PATH}`)
-      const fileData = await response.json()
-      
-      // Decode content yang ada
+      // Get existing file
+      const { data: fileData } = await octokit.repos.getContent({
+        owner: 'muhammadhairudin',
+        repo: 'khitan',
+        path: 'data/registrations.json'
+      })
+
+      // Decode and parse content
       let existingData = []
       if (fileData.content) {
         const decodedContent = atob(fileData.content)
-        existingData = JSON.parse(decodedContent)
+        try {
+          const parsedData = JSON.parse(decodedContent)
+          existingData = Array.isArray(parsedData) ? parsedData : []
+        } catch (error) {
+          console.error('Error parsing JSON:', error)
+        }
       }
 
-      // Tambah data baru
-      existingData.push({
+      // Add new data
+      const newData = {
         ...data,
         registrationNumber: `Khitan-6-${String(existingData.length + 1).padStart(3, '0')}`,
         status: 'pending',
         createdAt: new Date().toISOString()
+      }
+      
+      existingData.push(newData)
+
+      // Update file
+      await octokit.repos.createOrUpdateFileContents({
+        owner: 'muhammadhairudin',
+        repo: 'khitan',
+        path: 'data/registrations.json',
+        message: `Add registration: ${data.childName}`,
+        content: btoa(JSON.stringify(existingData, null, 2)),
+        sha: fileData.sha
       })
 
-      // Encode data untuk GitHub
-      const content = btoa(JSON.stringify(existingData, null, 2))
-
-      // Update file di GitHub
-      await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${DATA_PATH}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `token ${GITHUB_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: `Add registration: ${data.childName}`,
-          content,
-          sha: fileData.sha
-        })
-      })
-
-      return existingData[existingData.length - 1]
+      return newData
     } catch (error) {
       console.error('Error saving to GitHub:', error)
       throw error

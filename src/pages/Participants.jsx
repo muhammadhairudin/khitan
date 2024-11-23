@@ -1,4 +1,9 @@
 import { useState, useEffect } from 'react'
+import { Octokit } from '@octokit/rest'
+
+const octokit = new Octokit({
+  auth: import.meta.env.VITE_GITHUB_TOKEN
+})
 
 // Konstanta untuk GitHub
 const REPO_OWNER = 'muhammadhairudin'
@@ -12,23 +17,20 @@ export default function Participants() {
   const [lastUpdate, setLastUpdate] = useState(null)
   const [lastStatus, setLastStatus] = useState({}) // Untuk tracking perubahan status
 
-  // Fungsi fetch data dari GitHub
+  // Fungsi fetch data dari GitHub menggunakan Octokit
   const fetchParticipants = async () => {
     try {
-      const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${DATA_PATH}`, {
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        },
-        cache: 'no-store'
+      const { data } = await octokit.repos.getContent({
+        owner: 'muhammadhairudin',
+        repo: 'khitan',
+        path: 'data/registrations.json'
       })
-      const fileData = await response.json()
-      const decodedContent = atob(fileData.content)
-      const data = JSON.parse(decodedContent)
+      
+      const content = atob(data.content)
+      const registrations = JSON.parse(content)
       
       // Cek perubahan status
-      data.forEach(participant => {
+      registrations.forEach(participant => {
         const prevStatus = lastStatus[participant.registrationNumber]
         if (prevStatus && prevStatus !== participant.status) {
           // Tampilkan notifikasi jika status berubah
@@ -38,7 +40,7 @@ export default function Participants() {
         lastStatus[participant.registrationNumber] = participant.status
       })
       
-      setParticipants(data)
+      setParticipants(registrations)
       setLastUpdate(new Date().toLocaleTimeString())
       setLastStatus(lastStatus)
       setLoading(false)

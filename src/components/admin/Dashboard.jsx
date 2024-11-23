@@ -1,6 +1,4 @@
 import { useState, useEffect } from 'react'
-import { db } from '../../lib/firebase'
-import { collection, query, where, getDocs } from 'firebase/firestore'
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -17,34 +15,43 @@ export default function Dashboard() {
 
   useEffect(() => {
     const fetchStats = async () => {
-      const q = query(collection(db, "registrations"))
-      const snapshot = await getDocs(q)
-      
-      const newStats = {
-        total: snapshot.size,
-        pending: 0,
-        approved: 0,
-        rejected: 0,
-        byAge: {
-          '6-8': 0,
-          '9-10': 0,
-          '11-12': 0
-        }
-      }
-
-      snapshot.forEach(doc => {
-        const data = doc.data()
-        // Count by status
-        newStats[data.status]++
+      try {
+        const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${DATA_PATH}`, {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        })
+        const fileData = await response.json()
+        const decodedContent = atob(fileData.content)
+        const registrations = JSON.parse(decodedContent)
         
-        // Count by age
-        const age = calculateAge(data.birthDate)
-        if (age >= 6 && age <= 8) newStats.byAge['6-8']++
-        else if (age >= 9 && age <= 10) newStats.byAge['9-10']++
-        else if (age >= 11 && age <= 12) newStats.byAge['11-12']++
-      })
+        const newStats = {
+          total: registrations.length,
+          pending: 0,
+          approved: 0,
+          rejected: 0,
+          byAge: {
+            '6-8': 0,
+            '9-10': 0,
+            '11-12': 0
+          }
+        }
 
-      setStats(newStats)
+        registrations.forEach(reg => {
+          // Count by status
+          newStats[reg.status]++
+          
+          // Count by age
+          const age = calculateAge(reg.birthDate)
+          if (age >= 6 && age <= 8) newStats.byAge['6-8']++
+          else if (age >= 9 && age <= 10) newStats.byAge['9-10']++
+          else if (age >= 11 && age <= 12) newStats.byAge['11-12']++
+        })
+
+        setStats(newStats)
+      } catch (error) {
+        console.error('Error fetching stats:', error)
+      }
     }
 
     fetchStats()
