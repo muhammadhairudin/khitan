@@ -138,14 +138,122 @@ export default function Participants() {
           </button>
           <button 
             onClick={hardRefresh}
-            className="btn btn-sm btn-warning"
+            className="btn btn-sm btn-warning ml-2"
           >
             Force Refresh
           </button>
         </div>
       </div>
 
-      {/* Tabel dan konten lainnya tetap sama */}
+      {/* Desktop view */}
+      <div className="hidden md:block overflow-x-auto">
+        <table className="table w-full table-zebra">
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>No. Registrasi</th>
+              <th>Foto</th>
+              <th>Nama Anak</th>
+              <th>Tanggal Lahir</th>
+              <th>Nama Ayah</th>
+              <th>Nama Ibu</th>
+              <th>Status</th>
+              <th>Tanggal Daftar</th>
+            </tr>
+          </thead>
+          <tbody>
+            {participants.map((participant, index) => (
+              <tr key={participant.registrationNumber}>
+                <td>{index + 1}</td>
+                <td className="font-mono text-sm">{participant.registrationNumber}</td>
+                <td>
+                  {participant.photo && (
+                    <img 
+                      src={participant.photo} 
+                      alt={participant.childName}
+                      className="w-16 h-16 object-cover rounded-lg"
+                    />
+                  )}
+                </td>
+                <td>{participant.childName}</td>
+                <td>{formatDate(participant.birthDate)}</td>
+                <td>{participant.fatherName}</td>
+                <td>{participant.motherName}</td>
+                <td>
+                  <span className={`badge ${
+                    participant.status === 'approved' ? 'badge-success' :
+                    participant.status === 'rejected' ? 'badge-error' :
+                    'badge-warning'
+                  }`}>
+                    {participant.status === 'approved' ? 'Disetujui' :
+                     participant.status === 'rejected' ? 'Ditolak' :
+                     'Menunggu'}
+                  </span>
+                </td>
+                <td>{formatDate(participant.createdAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile view */}
+      <div className="md:hidden grid grid-cols-1 gap-4">
+        {participants.map((participant) => (
+          <div key={participant.registrationNumber} className="bg-white shadow-md rounded-lg overflow-hidden">
+            <div className="p-4">
+              <div className="flex justify-between items-start">
+                <div className="flex items-center space-x-3">
+                  {participant.photo && (
+                    <img 
+                      src={participant.photo} 
+                      alt={participant.childName}
+                      className="w-16 h-16 object-cover rounded-lg"
+                    />
+                  )}
+                  <div>
+                    <h3 className="font-bold text-lg">{participant.childName}</h3>
+                    <p className="text-sm text-gray-500 font-mono">{participant.registrationNumber}</p>
+                  </div>
+                </div>
+                <span className={`badge ${
+                  participant.status === 'approved' ? 'badge-success' :
+                  participant.status === 'rejected' ? 'badge-error' :
+                  'badge-warning'
+                }`}>
+                  {participant.status === 'approved' ? 'Disetujui' :
+                   participant.status === 'rejected' ? 'Ditolak' :
+                   'Menunggu'}
+                </span>
+              </div>
+              
+              <div className="mt-4 space-y-2 text-sm">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <p className="text-gray-500">Tanggal Lahir</p>
+                    <p className="font-medium">{formatDate(participant.birthDate)}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Tanggal Daftar</p>
+                    <p className="font-medium">{formatDate(participant.createdAt)}</p>
+                  </div>
+                </div>
+                <div className="pt-2 border-t">
+                  <p className="text-gray-500">Nama Orang Tua</p>
+                  <p className="font-medium">Ayah: {participant.fatherName}</p>
+                  <p className="font-medium">Ibu: {participant.motherName}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {participants.length === 0 && (
+        <div className="text-center py-8">
+          <p className="text-gray-500">Belum ada peserta terdaftar</p>
+        </div>
+      )}
     </div>
   )
 } 
