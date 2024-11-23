@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { collection, query, getDocs } from 'firebase/firestore'
-import { db } from '../../lib/firebase'
+import { Octokit } from '@octokit/rest'
+
+const octokit = new Octokit({
+  auth: import.meta.env.VITE_GITHUB_TOKEN
+})
 
 export default function Hero() {
   const [stats, setStats] = useState({
@@ -14,19 +17,24 @@ export default function Hero() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const q = query(collection(db, "registrations"))
-        const snapshot = await getDocs(q)
+        const { data } = await octokit.repos.getContent({
+          owner: 'muhammadhairudin',
+          repo: 'khitan',
+          path: 'data/registrations.json'
+        })
+        
+        const content = atob(data.content)
+        const registrations = JSON.parse(content)
         
         const newStats = {
-          total: snapshot.size,
+          total: registrations.length,
           pending: 0,
           approved: 0,
           rejected: 0
         }
 
-        snapshot.forEach(doc => {
-          const data = doc.data()
-          newStats[data.status]++
+        registrations.forEach(reg => {
+          newStats[reg.status]++
         })
 
         setStats(newStats)
