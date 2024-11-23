@@ -7,7 +7,23 @@ import { sendAdminNotification } from '../utils/whatsapp'
 import { Octokit } from '@octokit/rest'
 
 const octokit = new Octokit({
-  auth: process.env.VITE_GITHUB_TOKEN || import.meta.env.VITE_GITHUB_TOKEN
+  auth: import.meta.env.VITE_GITHUB_TOKEN,
+  request: {
+    timeout: 30000,
+    fetch: (url, options) => {
+      return fetch(url, {
+        ...options,
+        headers: {
+          ...options.headers,
+          'Authorization': `Bearer ${import.meta.env.VITE_GITHUB_TOKEN}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json',
+        },
+        mode: 'cors',
+        cache: 'no-cache'
+      })
+    }
+  }
 })
 
 export default function Registration() {
@@ -111,22 +127,32 @@ export default function Registration() {
 
   const saveToGitHub = async (data) => {
     try {
+      console.log('Start saving to GitHub...');
+      console.log('Token exists:', !!import.meta.env.VITE_GITHUB_TOKEN);
+      
+      console.log('Fetching existing data...');
       // Get existing file
       const { data: fileData } = await octokit.repos.getContent({
         owner: 'muhammadhairudin',
         repo: 'khitan',
-        path: 'data/registrations.json'
-      })
+        path: 'data/registrations.json',
+        headers: {
+          'If-None-Match': '' // Force fresh data
+        }
+      });
 
+      console.log('Parsing content...');
       // Decode and parse content
-      let existingData = []
+      let existingData = [];
       if (fileData.content) {
-        const decodedContent = atob(fileData.content)
+        const decodedContent = atob(fileData.content);
         try {
-          const parsedData = JSON.parse(decodedContent)
-          existingData = Array.isArray(parsedData) ? parsedData : []
+          existingData = JSON.parse(decodedContent);
+          if (!Array.isArray(existingData)) {
+            existingData = [];
+          }
         } catch (error) {
-          console.error('Error parsing JSON:', error)
+          console.error('Error parsing JSON:', error);
         }
       }
 
@@ -136,10 +162,11 @@ export default function Registration() {
         registrationNumber: `Khitan-6-${String(existingData.length + 1).padStart(3, '0')}`,
         status: 'pending',
         createdAt: new Date().toISOString()
-      }
+      };
       
-      existingData.push(newData)
+      existingData.push(newData);
 
+      console.log('Updating file...');
       // Update file
       await octokit.repos.createOrUpdateFileContents({
         owner: 'muhammadhairudin',
@@ -148,14 +175,19 @@ export default function Registration() {
         message: `Add registration: ${data.childName}`,
         content: btoa(JSON.stringify(existingData, null, 2)),
         sha: fileData.sha
-      })
+      });
 
-      return newData
+      return newData;
     } catch (error) {
-      console.error('Error saving to GitHub:', error)
-      throw error
+      console.error('GitHub API Error:', {
+        message: error.message,
+        status: error.status,
+        response: error.response,
+        stack: error.stack
+      });
+      throw error;
     }
-  }
+  };
 
   const onSubmit = async (data) => {
     setIsLoading(true)
