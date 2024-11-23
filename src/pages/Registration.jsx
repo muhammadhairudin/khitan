@@ -9,19 +9,17 @@ import { Octokit } from '@octokit/rest'
 const octokit = new Octokit({
   auth: import.meta.env.VITE_GITHUB_TOKEN,
   request: {
-    timeout: 30000,
     fetch: (url, options) => {
+      const token = import.meta.env.VITE_GITHUB_TOKEN;
       return fetch(url, {
         ...options,
         headers: {
           ...options.headers,
-          'Authorization': `Bearer ${import.meta.env.VITE_GITHUB_TOKEN}`,
-          'Accept': 'application/vnd.github.v3+json',
+          Authorization: `token ${token}`,
+          Accept: 'application/vnd.github.v3+json',
           'Content-Type': 'application/json',
-        },
-        mode: 'cors',
-        cache: 'no-cache'
-      })
+        }
+      });
     }
   }
 })
