@@ -93,10 +93,7 @@ export default function Admin() {
     try {
       const result = await Swal.fire({
         title: 'Ubah Status',
-        text: `Yakin ingin mengubah status menjadi ${
-          newStatus === 'approved' ? 'Disetujui' :
-          newStatus === 'rejected' ? 'Ditolak' : 'Pending'
-        }?`,
+        text: `Yakin ingin mengubah status menjadi ${newStatus}?`,
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#3085d6',
@@ -123,48 +120,33 @@ export default function Admin() {
             : reg
         )
 
-        // Save updated data
+        // Save updated data dengan commit message yang lebih jelas
         await octokit.repos.createOrUpdateFileContents({
           owner: 'muhammadhairudin',
           repo: 'khitan',
           path: 'data/registrations.json',
-          message: `Update status for ${participantId}`,
+          message: `Update status: ${participantId} to ${newStatus}`,
           content: btoa(JSON.stringify(registrations, null, 2)),
           sha: fileData.sha
         })
 
-        // Send notification if approved
-        if (newStatus === 'approved') {
-          const participant = participants.find(p => p.registrationNumber === participantId)
-          if (participant) {
-            sendApprovalNotification(participant.phone, {
-              registrationNumber: participant.registrationNumber,
-              childName: participant.childName
-            })
-          }
-        }
+        // Refresh data setelah update
+        await fetchStats()
 
+        // Tampilkan notifikasi sukses
         Swal.fire({
           title: 'Berhasil!',
-          text: `Status berhasil diubah menjadi ${
-            newStatus === 'approved' ? 'Disetujui' :
-            newStatus === 'rejected' ? 'Ditolak' : 'Pending'
-          }`,
+          text: `Status berhasil diubah menjadi ${newStatus}`,
           icon: 'success',
-          timer: 2000,
-          showConfirmButton: false
+          timer: 2000
         })
-
-        // Refresh data
-        fetchStats()
       }
     } catch (error) {
       console.error('Error updating status:', error)
       Swal.fire({
         title: 'Error!',
         text: 'Gagal mengubah status. Silakan coba lagi.',
-        icon: 'error',
-        confirmButtonText: 'OK'
+        icon: 'error'
       })
     }
   }

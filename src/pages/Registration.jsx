@@ -7,7 +7,7 @@ import { sendAdminNotification } from '../utils/whatsapp'
 import { Octokit } from '@octokit/rest'
 
 const octokit = new Octokit({
-  auth: import.meta.env.VITE_GITHUB_TOKEN
+  auth: process.env.VITE_GITHUB_TOKEN || import.meta.env.VITE_GITHUB_TOKEN
 })
 
 export default function Registration() {
