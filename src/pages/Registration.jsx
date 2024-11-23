@@ -11,6 +11,8 @@ const octokit = new Octokit({
   request: {
     fetch: (url, options) => {
       const token = import.meta.env.VITE_GITHUB_TOKEN;
+      console.log('Using token:', token ? 'Token exists' : 'Token missing');
+      
       return fetch(url, {
         ...options,
         headers: {
@@ -126,7 +128,7 @@ export default function Registration() {
   const saveToGitHub = async (data) => {
     try {
       console.log('Start saving to GitHub...');
-      console.log('Token exists:', !!import.meta.env.VITE_GITHUB_TOKEN);
+      console.log('Token status:', import.meta.env.VITE_GITHUB_TOKEN ? 'exists' : 'missing');
       
       console.log('Fetching existing data...');
       // Get existing file
@@ -138,7 +140,7 @@ export default function Registration() {
           'If-None-Match': '' // Force fresh data
         }
       });
-
+ 
       console.log('Parsing content...');
       // Decode and parse content
       let existingData = [];
@@ -180,8 +182,7 @@ export default function Registration() {
       console.error('GitHub API Error:', {
         message: error.message,
         status: error.status,
-        response: error.response,
-        stack: error.stack
+        token: import.meta.env.VITE_GITHUB_TOKEN ? 'exists' : 'missing'
       });
       throw error;
     }
