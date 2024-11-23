@@ -1,4 +1,14 @@
 import { useState, useEffect } from 'react'
+import { Octokit } from '@octokit/rest'
+
+const octokit = new Octokit({
+  auth: import.meta.env.VITE_GITHUB_TOKEN
+})
+
+// Konstanta untuk GitHub
+const REPO_OWNER = 'muhammadhairudin'
+const REPO_NAME = 'khitan'
+const DATA_PATH = 'data/registrations.json'
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -13,17 +23,30 @@ export default function Dashboard() {
     }
   })
 
+  const calculateAge = (birthDate) => {
+    const today = new Date()
+    const birth = new Date(birthDate)
+    let age = today.getFullYear() - birth.getFullYear()
+    const monthDiff = today.getMonth() - birth.getMonth()
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--
+    }
+    
+    return age
+  }
+
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${DATA_PATH}`, {
-          headers: {
-            'Cache-Control': 'no-cache'
-          }
+        const { data } = await octokit.repos.getContent({
+          owner: REPO_OWNER,
+          repo: REPO_NAME,
+          path: DATA_PATH
         })
-        const fileData = await response.json()
-        const decodedContent = atob(fileData.content)
-        const registrations = JSON.parse(decodedContent)
+        
+        const content = atob(data.content)
+        const registrations = JSON.parse(content)
         
         const newStats = {
           total: registrations.length,
