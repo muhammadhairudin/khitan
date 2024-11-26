@@ -13,7 +13,7 @@ import { FaWhatsapp } from "react-icons/fa"
 
 function App() {
   return (
-    <Router>
+    <Router basename="/khitan">
       <AuthProvider>
         <ToastProvider>
           <div className="flex min-h-screen flex-col bg-base-100/50">
